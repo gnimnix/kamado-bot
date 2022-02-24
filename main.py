@@ -1,5 +1,6 @@
 import os
 
+import asyncio
 import discord
 from discord.ext import commands
 import youtube_dl
@@ -15,6 +16,7 @@ YDL_OPTIONS = {
 
 
 client = commands.Bot(command_prefix='!')
+playlist = []
 
 
 @client.event
@@ -24,22 +26,42 @@ async def on_ready():
 
 @client.command()
 async def play(ctx, url=""):
-    voiceClient = await ctx.author.voice.channel.connect()
+    
+    voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voiceClient == None:
+        voiceClient = await ctx.author.voice.channel.connect()
+    
     if voiceClient == None:
         ctx.send("You are not in a voice channel. Please join a voice channel first")
         return
 
-    with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-        info = ydl.extract_info(url, download=False)
-        url2 = info["formats"][0]['url']
-        source = await discord.FFmpegOpusAudio.from_probe(url2, **FFMPEG_OPTIONS)
-        voiceClient.play(source)
+    if voiceClient.is_playing():
+        playlist.append(url.lstrip())
+        await ctx.send(f"Queued {url.lstrip()}")
+    else:
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(url, download=False)
+            url2 = info["formats"][0]['url']
+            source = await discord.FFmpegOpusAudio.from_probe(url2, **FFMPEG_OPTIONS)
+            voiceClient.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(next(ctx), client.loop))
+
+
+async def next(ctx):
+    if len(playlist) > 0:
+        voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
+        url = playlist.pop(0)
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(url, download=False)
+            url2 = info["formats"][0]['url']
+            source = await discord.FFmpegOpusAudio.from_probe(url2, **FFMPEG_OPTIONS)
+            voiceClient.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(next(ctx), client.loop))
 
 
 @client.command()
 async def pause(ctx):
-    if ctx.voice_client != None:
-        ctx.voice_client.pause()
+    voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voiceClient != None:
+        voiceClient.pause()
         await ctx.send("Paused Audio")
     else:
         await ctx.send("No audio is playing")
@@ -47,19 +69,27 @@ async def pause(ctx):
 
 @client.command()
 async def resume(ctx):
-    if ctx.voice_client != None:
-        ctx.voice_client.resume()
+    voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voiceClient != None:
+        voiceClient.resume()
         await ctx.send("Resumed Audio")
     else:
         await ctx.send("No audio is queued")
+        
+        
+@client.command()
+async def skip(ctx):
+    voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    
 
 
 @client.command()
 async def leave(ctx):
-    if ctx.voice_client.is_connected():
-        await ctx.voice_client.disconnect()
+    voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voiceClient.is_connected():
+        await voiceClient.disconnect()
     else:
-        await ctx.voice_client.send("The bot is not connected to a voice channel")
+        await voiceClient.send("The bot is not connected to a voice channel")
 
 
 client.run(os.getenv("TOKEN"))
