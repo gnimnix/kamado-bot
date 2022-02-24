@@ -80,7 +80,9 @@ async def resume(ctx):
 @client.command()
 async def skip(ctx):
     voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
-    
+    if voiceClient.is_playing():
+        voiceClient.stop()
+        await next(ctx)
 
 
 @client.command()
