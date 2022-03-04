@@ -11,6 +11,7 @@ setup(name='kamado-bot',
       include_package_data=True,
       install_requires=[
         'discord',
-        'youtube-dl'
+        'youtube-dl',
+        'PyNaCl'
         ],
      )
