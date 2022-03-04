@@ -58,6 +58,18 @@ async def next(ctx):
 
 
 @client.command()
+async def queue(ctx):
+    if len(playlist) > 0:
+        info = []
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+            for url in playlist:
+                info.append(ydl.extract_info(url, download=False).get('title', 'Missing video title'))
+        await ctx.send('\n'.join([f"{i+1}. {title}" for i, title in enumerate(info)]))
+    else:
+        await ctx.send("No songs in queue")
+
+
+@client.command()
 async def pause(ctx):
     voiceClient = discord.utils.get(client.voice_clients, guild=ctx.guild)
     if voiceClient != None:
@@ -94,4 +106,5 @@ async def leave(ctx):
         await voiceClient.send("The bot is not connected to a voice channel")
 
 
-client.run(os.getenv("TOKEN"))
+if __name__ == "__main__":
+    client.run(os.getenv("TOKEN"))
